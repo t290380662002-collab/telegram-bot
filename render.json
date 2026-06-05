@@ -1,0 +1,9 @@
+{
+  "name": "macau168-bot",
+  "type": "worker",
+  "buildCommand": "npm install",
+  "startCommand": "node src/index.js",
+  "env": {
+    "NODE_ENV": "production"
+  }
+}

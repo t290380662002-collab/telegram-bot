@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Telegraf } = require('telegraf');
 const https = require('https');
 const transactionHandler = require('./handlers/transactionHandler');
-const { db } = require('./firebase');
+const { db, firebaseReady } = require('./firebase');
 
 // ====== 工具函數 ======
 function fmtDate(date) {
@@ -36,6 +36,10 @@ const AUTH_DURATION_MS = 90 * 24 * 60 * 60 * 1000;
 
 // 從 Firestore 加載已授權用戶
 async function loadAuthorizedUsers() {
+  if (!firebaseReady || !db) {
+    console.log('⚠️  Firebase 未就緒，跳過授權載入');
+    return;
+  }
   try {
     const doc = await db.collection('settings').doc('authorized_users').get();
     if (doc.exists && doc.data().users) {
@@ -64,6 +68,7 @@ async function saveUserAuth(userId, expiresAt) {
 
 // 加載已授權群組
 async function loadAuthorizedGroups() {
+  if (!firebaseReady || !db) return;
   try {
     const doc = await db.collection('settings').doc('authorized_groups').get();
     if (doc.exists && doc.data().groups) {
@@ -752,21 +757,29 @@ bot.catch((err, ctx) => {
 });
 
 // ====== 啟動 ======
-// 先加載已授權用戶，再啟動 bot
-loadAuthorizedUsers().then(() => loadAuthorizedGroups()).then(() => {
+async function startBot() {
+  try {
+    await loadAuthorizedUsers();
+    await loadAuthorizedGroups();
+  } catch (e) {
+    console.warn('⚠️  授權載入失敗，Bot 仍會啟動:', e.message);
+  }
+  
   bot.launch()
     .then(() => {
       console.log('✅ Telegram bot 已啟動...');
-      console.log(`📛 Bot 用户名: @${bot.botInfo ? bot.botInfo.username : 'unknown'}`);
+      console.log(`📛 Bot 用户名: ${bot.botInfo ? '@' + bot.botInfo.username : 'unknown'}`);
     })
     .catch((err) => {
       console.error('❌ Bot 啟動失敗:', err.message);
       if (err.message.includes('409') || err.message.includes('Conflict')) {
-        console.error('請檢查是否有另一個 bot 實例在運行（可能端口被佔用）');
+        console.error('請檢查是否有另一個 bot 實例在運行');
       }
       process.exit(1);
     });
-});
+}
+
+startBot();
 
 // 優雅關閉
 process.once('SIGINT', () => bot.stop('SIGINT'));
