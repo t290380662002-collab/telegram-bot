@@ -1,30 +1,45 @@
-// 使用 Firebase Compat SDK（API 與 Admin SDK 相同，免服務帳戶金鑰）
-const firebase = require('firebase/compat/app');
-require('firebase/compat/firestore');
+const admin = require('firebase-admin');
+const path = require('path');
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyCXIFVxzuN8_ROtRRXl5wZv5xU_2oAw2PY',
-  authDomain: 'macau-168.firebaseapp.com',
-  projectId: 'macau-168',
-  storageBucket: 'macau-168.firebasestorage.app',
-  messagingSenderId: '172589695649',
-  appId: '1:172589695649:web:371ab4a510aed1af71e6e0'
+// 方式1：從環境變量讀取 Firestore 服務帳戶（用於 Railway 等雲端部署）
+let serviceAccount;
+if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try {
+    serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    console.log('🔑 已從環境變量載入服務帳戶');
+  } catch (e) {
+    console.warn('⚠️  FIREBASE_SERVICE_ACCOUNT 格式錯誤:', e.message);
+  }
+}
+
+// 方式2：從 config 目錄讀取本地金鑰文件（用於本地開發）
+if (!serviceAccount) {
+  const serviceAccountPath = path.join(__dirname, '..', 'config', 'service-account-key.json');
+  try {
+    serviceAccount = require(serviceAccountPath);
+    console.log('🔑 已從文件載入服務帳戶金鑰');
+  } catch (error) {
+    console.warn('⚠️  未找到 service-account-key.json，將使用應用默認憑證');
+  }
+}
+
+// 初始化 Firebase Admin SDK
+const appOptions = {
+  projectId: process.env.FIREBASE_PROJECT_ID || 'telegram-bot-new-cef53'
 };
+if (serviceAccount) {
+  appOptions.credential = admin.credential.cert(serviceAccount);
+}
+if (process.env.FIREBASE_DATABASE_URL) {
+  appOptions.databaseURL = process.env.FIREBASE_DATABASE_URL;
+}
+admin.initializeApp(appOptions);
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 
 const firebaseReady = true;
 
-console.log(`🔥 Firebase 已連接 (Compat SDK): macau-168`);
-
-// 相容層：模擬 admin.firestore.Timestamp
-const admin = {
-  firestore: {
-    Timestamp: firebase.firestore.Timestamp,
-    FieldValue: firebase.firestore.FieldValue
-  }
-};
+console.log(`🔥 Firebase 已連接: ${admin.app().options.projectId || '未知項目'}`);
 
 module.exports = { admin, db, firebaseReady };
