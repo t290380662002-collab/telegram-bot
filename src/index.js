@@ -4,6 +4,15 @@ const https = require('https');
 const transactionHandler = require('./handlers/transactionHandler');
 const { db } = require('./firebase');
 
+// ====== 工具函數 ======
+function fmtDate(date) {
+  const d = date instanceof Date ? date : (date && date.toDate ? date.toDate() : new Date(date));
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 // ====== 強制使用 IPv4（解決沙盒 IPv6 連線問題）======
 const ipv4Agent = new https.Agent({ family: 4 });
 
