@@ -17,6 +17,7 @@ const bot = new Telegraf(token, {
 // 新用戶使用 /start <邀請碼> 來取得授權（有效期 3 個月）
 const ALLOWED_USERS = [7985643310];  // 只有這些 ID 能產生邀請碼
 let authorizedUsers = new Map();  // userId → { expiresAt: Date | null }
+let authorizedGroups = new Map();  // groupId → { expiresAt: Date | null }
 
 // 硬編碼管理員永不過期
 ALLOWED_USERS.forEach(id => authorizedUsers.set(id, { expiresAt: null }));
@@ -52,6 +53,44 @@ async function saveUserAuth(userId, expiresAt) {
   await docRef.set({ users });
 }
 
+// 加載已授權群組
+async function loadAuthorizedGroups() {
+  try {
+    const doc = await db.collection('settings').doc('authorized_groups').get();
+    if (doc.exists && doc.data().groups) {
+      for (const [groupIdStr, info] of Object.entries(doc.data().groups)) {
+        const groupId = parseInt(groupIdStr);
+        const expiresAt = info.expiresAt ? info.expiresAt.toDate() : null;
+        if (expiresAt && expiresAt < new Date()) continue;
+        authorizedGroups.set(groupId, { expiresAt });
+      }
+      console.log(`👥 已加載 ${authorizedGroups.size} 個已授權群組`);
+    }
+  } catch (e) {
+    console.error('加載授權群組失敗:', e.message);
+  }
+}
+
+// 儲存群組授權到 Firestore
+async function saveGroupAuth(groupId, expiresAt) {
+  const docRef = db.collection('settings').doc('authorized_groups');
+  const doc = await docRef.get();
+  let groups = doc.exists ? (doc.data().groups || {}) : {};
+  groups[String(groupId)] = { expiresAt: expiresAt || null };
+  await docRef.set({ groups });
+}
+
+// 檢查群組是否已授權
+function isGroupAuthorized(chatId) {
+  const info = authorizedGroups.get(chatId);
+  if (!info) return false;
+  if (info.expiresAt && info.expiresAt < new Date()) {
+    authorizedGroups.delete(chatId);
+    return false;
+  }
+  return true;
+}
+
 // 檢查是否已授權（含過期檢查）
 function isAuthorized(userId) {
   const info = authorizedUsers.get(userId);
@@ -67,19 +106,27 @@ function isAuthorized(userId) {
 bot.use((ctx, next) => {
   // 以下情況跳過檢查：
   // 1. my_chat_member（bot 被拉入群組）
-  // 2. /start 和 /generate 指令
+  // 2. /start、/generate、/激活 指令
   if (ctx.updateType === 'my_chat_member' ||
       (ctx.message && ctx.message.text && 
-       (ctx.message.text.startsWith('/start') || ctx.message.text.startsWith('/generate')))) {
+       (ctx.message.text.startsWith('/start') || 
+        ctx.message.text.startsWith('/generate') ||
+        ctx.message.text.startsWith('/激活')))) {
     return next();
   }
 
-  // 檢查用戶是否已授權
+  // 檢查群組授權：如果消息來自已授權的群組，直接放行所有人
+  if (ctx.chat && ctx.chat.type !== 'private' && isGroupAuthorized(ctx.chat.id)) {
+    return next();
+  }
+
+  // 檢查用戶個人授權
   if (ctx.from && !isAuthorized(ctx.from.id)) {
     return ctx.reply(
       `❌ 你沒有使用此機器人的權限\n\n` +
       `你的 User ID: ${ctx.from.id}\n` +
-      `請使用 /start <邀請碼> 來取得授權`
+      `請使用 /start <邀請碼> 來取得授權\n` +
+      `或在已授權的群組中使用`
     ).catch(() => {});
   }
 
@@ -139,6 +186,9 @@ bot.start(async (ctx) => {
   const userName = ctx.from.first_name || ctx.from.username || '用戶';
 
   if (payload) {
+    // 判斷是否在群組中
+    const isGroup = ctx.chat && ctx.chat.type !== 'private';
+
     // 嘗試使用邀請碼
     try {
       const inviteDoc = await db.collection('inviteCodes').doc(payload).get();
@@ -161,22 +211,37 @@ bot.start(async (ctx) => {
       // 標記邀請碼為已使用
       await inviteDoc.ref.update({
         used: true,
-        usedBy: userId,
+        usedBy: isGroup ? `group_${ctx.chat.id}_by_${userId}` : userId,
         usedAt: new Date()
       });
 
-      // 將用戶加入授權名單（有效期 3 個月）
       const expiresAt = new Date(Date.now() + AUTH_DURATION_MS);
-      authorizedUsers.set(userId, { expiresAt });
-      await saveUserAuth(userId, expiresAt);
 
-      await ctx.reply(
-        `✅ 授權成功！歡迎 ${userName}\n\n` +
-        `你現在可以使用出入帳機器人了\n` +
-        `📅 授權有效期至: ${fmtDate(expiresAt)}\n\n` +
-        `請使用下方鍵盤操作 👇`,
-        { reply_markup: mainKeyboard }
-      );
+      if (isGroup) {
+        // 群組授權：授權整個群組
+        authorizedGroups.set(ctx.chat.id, { expiresAt });
+        await saveGroupAuth(ctx.chat.id, expiresAt);
+        await ctx.reply(
+          `✅ 群組授權成功！\n\n` +
+          `群組 ID: ${ctx.chat.id}\n` +
+          `此群組內所有成員現在都可以使用機器人\n` +
+          `📅 授權有效期至: ${fmtDate(expiresAt)}\n\n` +
+          `請使用下方鍵盤操作 👇`,
+          { reply_markup: mainKeyboard }
+        );
+      } else {
+        // 個人授權
+        authorizedUsers.set(userId, { expiresAt });
+        await saveUserAuth(userId, expiresAt);
+
+        await ctx.reply(
+          `✅ 授權成功！歡迎 ${userName}\n\n` +
+          `你現在可以使用出入帳機器人了\n` +
+          `📅 授權有效期至: ${fmtDate(expiresAt)}\n\n` +
+          `請使用下方鍵盤操作 👇`,
+          { reply_markup: mainKeyboard }
+        );
+      }
     } catch (error) {
       console.error('邀請碼驗證錯誤:', error);
       await ctx.reply('❌ 驗證失敗: ' + error.message);
@@ -500,11 +565,72 @@ bot.command('generate', async (ctx) => {
       `📌 ${code}\n` +
       `📅 有效至: ${expiryDateStr}\n\n` +
       `分享此碼給要授權的人使用\n` +
-      `他們輸入 /start ${code} 即可`
+      `私聊輸入 /start ${code}\n` +
+      `群組輸入 /激活 ${code}（授權全群）`
     );
   } catch (error) {
     console.error('產生邀請碼錯誤:', error);
     await ctx.reply('❌ 產生失敗: ' + error.message);
+  }
+});
+
+// ====== /激活 指令（群組中啟用邀請碼，授權整個群組）======
+bot.command('激活', async (ctx) => {
+  const parts = ctx.message.text.trim().split(/\s+/);
+  const code = parts[1];
+  const userId = ctx.from.id;
+  const chatId = ctx.chat.id;
+
+  if (!code) {
+    return ctx.reply('❌ 請提供邀請碼\n格式: /激活 <邀請碼>');
+  }
+
+  // 檢查是否在群組中
+  if (ctx.chat.type === 'private') {
+    return ctx.reply('❌ 此指令僅可在群組中使用\n私聊請使用 /start <邀請碼>');
+  }
+
+  try {
+    const inviteDoc = await db.collection('inviteCodes').doc(code).get();
+
+    if (!inviteDoc.exists) {
+      return ctx.reply('❌ 邀請碼無效，請檢查是否輸入正確');
+    }
+
+    const codeData = inviteDoc.data();
+    if (codeData.used) {
+      return ctx.reply('❌ 此邀請碼已被使用');
+    }
+    if (codeData.expiresAt) {
+      const codeExpiry = codeData.expiresAt.toDate ? codeData.expiresAt.toDate() : new Date(codeData.expiresAt);
+      if (codeExpiry < new Date()) {
+        return ctx.reply('❌ 此邀請碼已過期，請向管理員索取新碼');
+      }
+    }
+
+    // 標記邀請碼為已使用
+    await inviteDoc.ref.update({
+      used: true,
+      usedBy: `group_${chatId}_by_${userId}`,
+      usedAt: new Date()
+    });
+
+    // 授權整個群組
+    const expiresAt = new Date(Date.now() + AUTH_DURATION_MS);
+    authorizedGroups.set(chatId, { expiresAt });
+    await saveGroupAuth(chatId, expiresAt);
+
+    await ctx.reply(
+      `✅ 群組授權成功！\n\n` +
+      `群組 ID: ${chatId}\n` +
+      `此群組內所有成員現在都可以使用機器人\n` +
+      `📅 授權有效期至: ${fmtDate(expiresAt)}\n\n` +
+      `請使用下方鍵盤操作 👇`,
+      { reply_markup: mainKeyboard }
+    );
+  } catch (error) {
+    console.error('群組激活錯誤:', error);
+    await ctx.reply('❌ 激活失敗: ' + error.message);
   }
 });
 
@@ -547,7 +673,7 @@ bot.catch((err, ctx) => {
 
 // ====== 啟動 ======
 // 先加載已授權用戶，再啟動 bot
-loadAuthorizedUsers().then(() => {
+loadAuthorizedUsers().then(() => loadAuthorizedGroups()).then(() => {
   bot.launch()
     .then(() => {
       console.log('✅ Telegram bot 已啟動...');
