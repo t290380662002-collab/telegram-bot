@@ -326,6 +326,7 @@ bot.on('text', async (ctx, next) => {
   if (text.startsWith('/顯示')) return transactionHandler.showStatus(ctx);
   if (text.startsWith('/刪除')) {
     const parts = text.split(/\s+/).slice(1);
+    if (!parts[0]) return ctx.reply('❌ 請輸入編號\n格式: /刪除 #1 或 /刪除 #1 日期');
     return transactionHandler.deleteRecord(ctx, parts[0], parts[1] || null);
   }
   if (text.startsWith('/風控')) {
