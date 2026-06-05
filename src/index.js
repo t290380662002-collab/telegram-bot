@@ -322,6 +322,35 @@ bot.on('text', async (ctx, next) => {
     }
   }
 
+  // --- 傳統指令直接處理（解決 bot.command() 對中文兼容問題）---
+  if (text.startsWith('/顯示')) return transactionHandler.showStatus(ctx);
+  if (text.startsWith('/刪除')) {
+    const parts = text.split(/\s+/).slice(1);
+    return transactionHandler.deleteRecord(ctx, parts[0], parts[1] || null);
+  }
+  if (text.startsWith('/風控')) {
+    const input = text.replace(/^\/風控\s*/, '');
+    return transactionHandler.setRiskControl(ctx, input);
+  }
+  if (text.startsWith('/結算計入')) {
+    const ym = text.split(/\s+/)[1] || '';
+    return transactionHandler.confirmSettlement(ctx, ym);
+  }
+  if (text.startsWith('/結算')) {
+    const ym = text.split(/\s+/)[1] || '';
+    return transactionHandler.previewSettlement(ctx, ym);
+  }
+  if (text.startsWith('/匯出')) {
+    const ym = text.split(/\s+/)[1] || '';
+    return transactionHandler.exportMonthlyData(ctx, ym);
+  }
+  if (text.startsWith('/手續費')) {
+    const parts = text.replace(/^\/手續費\s*/, '').trim().split(/\s+/);
+    const amt = parseFloat(parts[0]);
+    if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /手續費 100 或 /手續費 100 C');
+    return transactionHandler.addFee(ctx, amt, parts.slice(1).join(' ') || 'W');
+  }
+
   // --- 其他 / 開頭的指令（/+ 和 /- 除外）：交給 bot.command() 處理 ---
   if (text.startsWith('/') && !text.startsWith('/+') && !text.startsWith('/-')) {
     return next();
