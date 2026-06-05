@@ -535,8 +535,8 @@ async function showMonthlyFlow(ctx, yearMonth) {
     const netAmount = totalIncome - totalExpense;
 
     let message = `📊 ${yearMonth} 月度流量報告\n\n`;
-    message += `💰 入金總額: ${fmt(totalIncome)}\n`;
-    message += `💸 出金總額: ${fmt(totalExpense)}\n`;
+    message += `💰 入帳總額: ${fmt(totalIncome)}\n`;
+    message += `💸 支出總額: ${fmt(totalExpense)}\n`;
     message += `🌙 手續費合計: ${fmt(totalFee)}\n`;
     message += `📈 淨值: ${fmt(netAmount)}\n`;
     message += `📝 共 ${docs.length} 筆記錄`;
@@ -644,8 +644,8 @@ async function exportMonthlyData(ctx, yearMonth) {
 
     wsData.push([]);
     wsData.push(['統計', '', '', '', '']);
-    wsData.push(['入金筆數', activeDocsForStats.filter(d => d.type === 'income').length, '入金總計', totalIncome]);
-    wsData.push(['出金筆數', activeDocsForStats.filter(d => d.type === 'expense').length, '出金總計', totalExpense]);
+    wsData.push(['入帳筆數', activeDocsForStats.filter(d => d.type === 'income').length, '入帳總計', totalIncome]);
+    wsData.push(['支出筆數', activeDocsForStats.filter(d => d.type === 'expense').length, '支出總計', totalExpense]);
     wsData.push(['手續費總計', totalFee, '', '']);
     wsData.push(['已刪除筆數', docs.filter(d => d.deleted).length, '', '']);
 
@@ -732,8 +732,8 @@ async function previewSettlement(ctx, yearMonth) {
     const netAmount = totalIncome - totalExpense - totalFee + carryover;
 
     let message = `📋 ${yearMonth} 結算預覽\n\n`;
-    message += `📥 入金總計: ${fmt(totalIncome)}\n`;
-    message += `📤 出金總計: ${fmt(totalExpense)}\n`;
+    message += `📥 入帳總計: ${fmt(totalIncome)}\n`;
+    message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
     message += `💰 結轉餘額: ${fmt(totalIncome - totalExpense)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
@@ -796,8 +796,8 @@ async function confirmSettlement(ctx, yearMonth) {
 
     let message = `✅ ${yearMonth} 結算成功並已存入資料庫\n`;
     message += `----------------------------\n`;
-    message += `📥 入金總計: ${fmt(totalIncome)}\n`;
-    message += `📤 出金總計: ${fmt(totalExpense)}\n`;
+    message += `📥 入帳總計: ${fmt(totalIncome)}\n`;
+    message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 處理單據: ${docs.length} 筆`;
@@ -840,7 +840,7 @@ async function listCurrentMonthForDelete(ctx) {
     for (const item of items) {
       const data = item.data;
       const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '入金' : data.type === 'expense' ? '出金' : '手續';
+      const typeName = data.type === 'income' ? '入帳' : data.type === 'expense' ? '支出' : '手續';
       const date = fmtDate(data.createdAt);
       const time = fmtTime(data.createdAt);
       const rid = (data.recordId || '?').padEnd(5);
