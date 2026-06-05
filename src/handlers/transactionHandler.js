@@ -88,6 +88,7 @@ async function addIncome(ctx, amount, remark = "W") {
     amount: parseFloat(amount),
     userId,
     userName,
+    operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
     yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
@@ -123,6 +124,7 @@ async function addExpense(ctx, amount, remark = "W") {
     amount: parseFloat(amount),
     userId,
     userName,
+    operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
     yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
@@ -158,6 +160,7 @@ async function addFee(ctx, amount, remark = "W") {
     amount: parseFloat(amount),
     userId,
     userName,
+    operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
     yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
@@ -200,7 +203,7 @@ async function deleteRecord(ctx, recordId, dateStr) {
     
     if ((!recordId || data.recordId === recordId || data.recordId === `#${recordId}`) &&
         (!dateStr || docDate === dateStr)) {
-      doc.ref.update({ deleted: true, deletedAt: new Date() });
+      doc.ref.update({ deleted: true, deletedAt: new Date(), deletedBy: ctx.from.id });
       deleted = true;
       deletedDoc = data;
     }
@@ -616,19 +619,21 @@ async function exportMonthlyData(ctx, yearMonth) {
     const wsData = [];
     
     // 標題列
-    wsData.push(['編號', '類型', '金額', '日期', '時間', '備註']);
+    wsData.push(['編號', '類型', '金額', '日期', '時間', '備註', '操作人員ID']);
 
     // 資料列
     const activeDocsForStats = docs.filter(d => !d.deleted);
     for (const data of docs) {
       const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費');
+      const opId = data.deleted ? (data.deletedBy || '') : (data.operatorId || '');
       wsData.push([
         data.recordId || '?',
         typeName,
         data.amount,
         fmtDate(data.createdAt),
         fmtTime(data.createdAt),
-        data.remark || 'W'
+        data.remark || 'W',
+        opId
       ]);
     }
 
@@ -670,7 +675,9 @@ async function exportMonthlyData(ctx, yearMonth) {
       { wch: 10 },
       { wch: 15 },
       { wch: 12 },
-      { wch: 10 }
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 14 }
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, '出入帳明細');
