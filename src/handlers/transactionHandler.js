@@ -885,7 +885,7 @@ async function deleteByDocId(ctx, docId) {
     }
     const data = doc.data();
     const typeLabel = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費';
-    await docRef.update({ deleted: true, deletedAt: new Date() });
+    await docRef.update({ deleted: true, deletedAt: new Date(), deletedBy: ctx.from.id });
     await ctx.reply(
       `✅ 已刪除\n\n` +
       `類型: ${typeLabel}\n` +
