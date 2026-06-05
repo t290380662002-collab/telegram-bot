@@ -1,0 +1,40 @@
+# 環境變量文件
+.env
+.env.local
+.env.development
+.env.production
+
+# Firebase 服務帳戶金鑰（敏感資訊，不要提交！）
+config/service-account-key.json
+
+# Node modules
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 日誌文件
+logs/
+*.log
+
+# 系統文件
+.DS_Store
+Thumbs.db
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 臨時文件
+tmp/
+temp/
+*.tmp
+
+# 數據庫文件（如果使用本地數據庫）
+*.db
+*.sqlite
+*.json.bak
