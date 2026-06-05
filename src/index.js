@@ -327,16 +327,20 @@ bot.on('text', async (ctx, next) => {
     return next();
   }
 
-  // --- 處理入金 /+ 數字 ---
-  if (text.match(/^\+\s*\d+(\.\d+)?$/)) {
-    const amount = text.replace(/^\+\s*/, '');
-    return transactionHandler.addIncome(ctx, amount);
+  // --- 處理入金 /+ 數字 [備註] ---
+  if (text.match(/^\+\s*\d+(\.\d+)?/)) {
+    const parts = text.replace(/^\+\s*/, '').trim().split(/\s+/);
+    const amount = parseFloat(parts[0]);
+    const remark = parts.slice(1).join(' ') || 'W';
+    return transactionHandler.addIncome(ctx, amount, remark);
   }
 
-  // --- 處理出金 /- 數字 ---
-  if (text.match(/^-\s*\d+(\.\d+)?$/)) {
-    const amount = text.replace(/^-\s*/, '');
-    return transactionHandler.addExpense(ctx, amount);
+  // --- 處理出金 /- 數字 [備註] ---
+  if (text.match(/^-\s*\d+(\.\d+)?/)) {
+    const parts = text.replace(/^-\s*/, '').trim().split(/\s+/);
+    const amount = parseFloat(parts[0]);
+    const remark = parts.slice(1).join(' ') || 'W';
+    return transactionHandler.addExpense(ctx, amount, remark);
   }
 
   // --- 處理入金模式（鍵盤按鈕觸發）---
@@ -481,31 +485,37 @@ bot.on('text', async (ctx, next) => {
 
 // ====== 傳統指令（兼容快捷輸入）======
 
-// 入金指令 /+ 金額
+// 入金指令 /+ 金額 [備註]
 bot.command('+', (ctx) => {
-  const amount = ctx.message.text.split(' ').slice(1).join(' ');
-  if (!amount || isNaN(parseFloat(amount))) {
-    return ctx.reply('❌ 請輸入金額\n例如: /+ 1000');
+  const parts = ctx.message.text.replace(/^\+\s*/, '').trim().split(/\s+/);
+  const amount = parseFloat(parts[0]);
+  if (isNaN(amount) || amount <= 0) {
+    return ctx.reply('❌ 請輸入金額\n例如: /+ 1000 或 /+ 1000 C');
   }
-  return transactionHandler.addIncome(ctx, amount);
+  const remark = parts.slice(1).join(' ') || 'W';
+  return transactionHandler.addIncome(ctx, amount, remark);
 });
 
-// 出金指令 /- 金額
+// 出金指令 /- 金額 [備註]
 bot.command('-', (ctx) => {
-  const amount = ctx.message.text.split(' ').slice(1).join(' ');
-  if (!amount || isNaN(parseFloat(amount))) {
-    return ctx.reply('❌ 請輸入金額\n例如: /- 1000');
+  const parts = ctx.message.text.replace(/^-\s*/, '').trim().split(/\s+/);
+  const amount = parseFloat(parts[0]);
+  if (isNaN(amount) || amount <= 0) {
+    return ctx.reply('❌ 請輸入金額\n例如: /- 1000 或 /- 1000 C');
   }
-  return transactionHandler.addExpense(ctx, amount);
+  const remark = parts.slice(1).join(' ') || 'W';
+  return transactionHandler.addExpense(ctx, amount, remark);
 });
 
 // 手續費指令
 bot.command('手續費', (ctx) => {
-  const amount = ctx.message.text.split(' ').slice(1).join(' ');
-  if (!amount || isNaN(parseFloat(amount))) {
-    return ctx.reply('❌ 請輸入金額\n例如: /手續費 100');
+  const parts = ctx.message.text.replace(/^\/手續費\s*/, '').trim().split(/\s+/);
+  const amount = parseFloat(parts[0]);
+  if (isNaN(amount) || amount <= 0) {
+    return ctx.reply('❌ 請輸入金額\n例如: /手續費 100 或 /手續費 100 C');
   }
-  return transactionHandler.addFee(ctx, amount);
+  const remark = parts.slice(1).join(' ') || 'W';
+  return transactionHandler.addFee(ctx, amount, remark);
 });
 
 // 刪除指令
