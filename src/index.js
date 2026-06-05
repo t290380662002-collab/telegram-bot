@@ -289,6 +289,39 @@ bot.on('text', async (ctx, next) => {
   const chatId = ctx.chat.id;
   console.log(`[HANDLER] text="${text}", chatType=${chatType}, chatId=${chatId}, inputModeKey=${inputModeKey}`);
 
+  // --- 處理 /激活 指令（群組授權）---
+  if (text.startsWith('/激活')) {
+    const parts = text.split(/\s+/);
+    const code = parts[1];
+    const userId = ctx.from.id;
+    const chatId = ctx.chat.id;
+
+    if (!code) return ctx.reply('❌ 請提供邀請碼\n格式: /激活 <邀請碼>');
+    if (ctx.chat.type === 'private') return ctx.reply('❌ 此指令僅可在群組中使用\n私聊請使用 /start <邀請碼>');
+
+    try {
+      const inviteDoc = await db.collection('inviteCodes').doc(code).get();
+      if (!inviteDoc.exists) return ctx.reply('❌ 邀請碼無效');
+      const cd = inviteDoc.data();
+      if (cd.used) return ctx.reply('❌ 此邀請碼已被使用');
+      const codeExpiry = cd.expiresAt && cd.expiresAt.toDate ? cd.expiresAt.toDate() : null;
+      if (codeExpiry && codeExpiry < new Date()) return ctx.reply('❌ 此邀請碼已過期');
+
+      await inviteDoc.ref.update({ used: true, usedBy: `group_${chatId}_by_${userId}`, usedAt: new Date() });
+      const expiresAt = new Date(Date.now() + AUTH_DURATION_MS);
+      authorizedGroups.set(chatId, { expiresAt });
+      await saveGroupAuth(chatId, expiresAt);
+
+      return ctx.reply(
+        `✅ 群組授權成功！\n群組 ID: ${chatId}\n此群組內所有成員現在都可以使用機器人\n📅 有效期至: ${fmtDate(expiresAt)}\n請使用下方鍵盤操作 👇`,
+        { reply_markup: mainKeyboard }
+      );
+    } catch (e) {
+      console.error('群組激活錯誤:', e);
+      return ctx.reply('❌ 激活失敗: ' + e.message);
+    }
+  }
+
   // --- 其他 / 開頭的指令（/+ 和 /- 除外）：交給 bot.command() 處理 ---
   if (text.startsWith('/') && !text.startsWith('/+') && !text.startsWith('/-')) {
     return next();
