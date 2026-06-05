@@ -322,6 +322,20 @@ bot.on('text', async (ctx, next) => {
     }
   }
 
+  // --- 處理 /+ 和 /- 直接指令（含備註）---
+  if (text.match(/^\/\+\s*\d/) || text.match(/^\+\s*\d/)) {
+    const clean = text.replace(/^\/\+\s*/, '').replace(/^\+\s*/, '');
+    const parts = clean.trim().split(/\s+/);
+    const amount = parseFloat(parts[0]);
+    if (!isNaN(amount) && amount > 0) return transactionHandler.addIncome(ctx, amount, parts.slice(1).join(' ') || 'W');
+  }
+  if (text.match(/^\/-\s*\d/) || text.match(/^-\s*\d/)) {
+    const clean = text.replace(/^\/-\s*/, '').replace(/^-\s*/, '');
+    const parts = clean.trim().split(/\s+/);
+    const amount = parseFloat(parts[0]);
+    if (!isNaN(amount) && amount > 0) return transactionHandler.addExpense(ctx, amount, parts.slice(1).join(' ') || 'W');
+  }
+
   // --- 傳統指令直接處理（解決 bot.command() 對中文兼容問題）---
   if (text.startsWith('/顯示')) return transactionHandler.showStatus(ctx);
   if (text.startsWith('/刪除')) {
@@ -355,22 +369,6 @@ bot.on('text', async (ctx, next) => {
   // --- 其他 / 開頭的指令（/+ 和 /- 除外）：交給 bot.command() 處理 ---
   if (text.startsWith('/') && !text.startsWith('/+') && !text.startsWith('/-')) {
     return next();
-  }
-
-  // --- 處理入金 /+ 數字 [備註] ---
-  if (text.match(/^\+\s*\d+(\.\d+)?/)) {
-    const parts = text.replace(/^\+\s*/, '').trim().split(/\s+/);
-    const amount = parseFloat(parts[0]);
-    const remark = parts.slice(1).join(' ') || 'W';
-    return transactionHandler.addIncome(ctx, amount, remark);
-  }
-
-  // --- 處理出金 /- 數字 [備註] ---
-  if (text.match(/^-\s*\d+(\.\d+)?/)) {
-    const parts = text.replace(/^-\s*/, '').trim().split(/\s+/);
-    const amount = parseFloat(parts[0]);
-    const remark = parts.slice(1).join(' ') || 'W';
-    return transactionHandler.addExpense(ctx, amount, remark);
   }
 
   // --- 處理入金模式（鍵盤按鈕觸發）---
