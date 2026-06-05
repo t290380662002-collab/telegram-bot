@@ -29,7 +29,7 @@ try {
 
   // 初始化 Firebase Admin SDK
   const appOptions = {
-    projectId: process.env.FIREBASE_PROJECT_ID || 'telegram-bot-new-cef53'
+    projectId: process.env.FIREBASE_PROJECT_ID || 'macau-168'
   };
   if (serviceAccount) {
     appOptions.credential = admin.credential.cert(serviceAccount);
