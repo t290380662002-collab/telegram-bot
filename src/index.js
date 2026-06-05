@@ -758,16 +758,6 @@ bot.catch((err, ctx) => {
 
 // ====== 啟動 ======
 async function startBot() {
-  if (!firebaseReady || !db) {
-    console.error('❌ Firebase 未就緒，請先下載服務帳戶金鑰:');
-    console.error('   1. 打開 https://console.firebase.google.com');
-    console.error('   2. 選擇 macau-168 → ⚙️ 專案設定 → 服務帳戶');
-    console.error('   3. 點擊「產生新的私密金鑰」');
-    console.error('   4. 下載的 JSON 放到 telegram-bot/config/service-account-key.json');
-    console.error('   5. 重新執行 start_bot.bat');
-    process.exit(1);
-  }
-
   try {
     await loadAuthorizedUsers();
     await loadAuthorizedGroups();

@@ -1,34 +1,30 @@
-const admin = require('firebase-admin');
-const path = require('path');
+// 使用 Firebase Compat SDK（API 與 Admin SDK 相同，免服務帳戶金鑰）
+const firebase = require('firebase/compat/app');
+require('firebase/compat/firestore');
 
-let db = null;
-let firebaseReady = false;
+const firebaseConfig = {
+  apiKey: 'AIzaSyCXIFVxzuN8_ROtRRXl5wZv5xU_2oAw2PY',
+  authDomain: 'macau-168.firebaseapp.com',
+  projectId: 'macau-168',
+  storageBucket: 'macau-168.firebasestorage.app',
+  messagingSenderId: '172589695649',
+  appId: '1:172589695649:web:371ab4a510aed1af71e6e0'
+};
 
-try {
-  let serviceAccount = null;
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.settings({ ignoreUndefinedProperties: true });
 
-  // 讀取服務帳戶金鑰
-  const keyPath = path.join(__dirname, '..', 'config', 'service-account-key.json');
-  try {
-    serviceAccount = require(keyPath);
-    console.log('🔑 已載入服務帳戶金鑰');
-  } catch (e) {
-    console.error('❌ 找不到 config/service-account-key.json');
-    console.error('   請從 Firebase Console 下載金鑰放到 config/ 目錄');
+const firebaseReady = true;
+
+console.log(`🔥 Firebase 已連接 (Compat SDK): macau-168`);
+
+// 相容層：模擬 admin.firestore.Timestamp
+const admin = {
+  firestore: {
+    Timestamp: firebase.firestore.Timestamp,
+    FieldValue: firebase.firestore.FieldValue
   }
-
-  if (serviceAccount && admin.apps.length === 0) {
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      projectId: serviceAccount.project_id
-    });
-    db = admin.firestore();
-    db.settings({ ignoreUndefinedProperties: true });
-    firebaseReady = true;
-    console.log(`🔥 Firebase 已連接: ${serviceAccount.project_id}`);
-  }
-} catch (e) {
-  console.error('❌ Firebase 初始化失敗:', e.message);
-}
+};
 
 module.exports = { admin, db, firebaseReady };
