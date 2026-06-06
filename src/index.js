@@ -341,31 +341,36 @@ bot.on('text', async (ctx, next) => {
     if (!isNaN(amount) && amount > 0) return transactionHandler.addExpense(ctx, amount, parts.slice(1).join(' ') || 'W');
   }
 
-  // --- 傳統指令直接處理（解決 bot.command() 對中文兼容問題）---
-  if (text.startsWith('/顯示')) return transactionHandler.showStatus(ctx);
-  if (text.startsWith('/刪除')) {
+  // --- 傳統指令直接處理（繁簡通用）---
+  // 輔助函數：檢查文字是否匹配任一指令別名
+  const matchCmd = (...aliases) => aliases.some(a => text.startsWith('/' + a));
+  // 輔助函數：從文字中提取指令後的第一個參數
+  const cmdArg = (alias) => text.replace(new RegExp('^/' + alias + '\\s*'), '').trim();
+  // 輔助函數：從文字中提取年月參數
+  const getYM = () => text.split(/\s+/)[1] || '';
+
+  if (matchCmd('顯示', '顯示統計', '显示', '显示统计')) return transactionHandler.showStatus(ctx);
+  if (matchCmd('刪除', '删除')) {
     const parts = text.split(/\s+/).slice(1);
     if (!parts[0]) return ctx.reply('❌ 請輸入編號\n格式: /刪除 #1 或 /刪除 #1 日期');
     return transactionHandler.deleteRecord(ctx, parts[0], parts[1] || null);
   }
-  if (text.startsWith('/風控')) {
-    const input = text.replace(/^\/風控\s*/, '');
+  if (matchCmd('風控', '风控')) {
+    const input = cmdArg('風控') || cmdArg('风控');
     return transactionHandler.setRiskControl(ctx, input);
   }
-  if (text.startsWith('/結算計入')) {
-    const ym = text.split(/\s+/)[1] || '';
-    return transactionHandler.confirmSettlement(ctx, ym);
+  if (matchCmd('結算計入', '结算计入')) {
+    return transactionHandler.confirmSettlement(ctx, getYM());
   }
-  if (text.startsWith('/結算')) {
-    const ym = text.split(/\s+/)[1] || '';
-    return transactionHandler.previewSettlement(ctx, ym);
+  if (matchCmd('結算', '结算')) {
+    return transactionHandler.previewSettlement(ctx, getYM());
   }
-  if (text.startsWith('/匯出')) {
-    const ym = text.split(/\s+/)[1] || '';
-    return transactionHandler.exportMonthlyData(ctx, ym);
+  if (matchCmd('匯出', '导出')) {
+    return transactionHandler.exportMonthlyData(ctx, getYM());
   }
-  if (text.startsWith('/手續費')) {
-    const parts = text.replace(/^\/手續費\s*/, '').trim().split(/\s+/);
+  if (matchCmd('手續費', '手续费')) {
+    const input = cmdArg('手續費') || cmdArg('手续费');
+    const parts = input.split(/\s+/);
     const amt = parseFloat(parts[0]);
     if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /手續費 100 或 /手續費 100 C');
     return transactionHandler.addFee(ctx, amt, parts.slice(1).join(' ') || 'W');
