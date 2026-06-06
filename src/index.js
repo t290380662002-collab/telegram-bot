@@ -344,8 +344,11 @@ bot.on('text', async (ctx, next) => {
   // --- 傳統指令直接處理（繁簡通用）---
   // 輔助函數：檢查文字是否匹配任一指令別名
   const matchCmd = (...aliases) => aliases.some(a => text.startsWith('/' + a));
-  // 輔助函數：從文字中提取指令後的第一個參數
-  const cmdArg = (alias) => text.replace(new RegExp('^/' + alias + '\\s*'), '').trim();
+  // 輔助函數：從文字中提取指令後的第一個參數（無匹配則返回空字串）
+  const cmdArg = (alias) => {
+    const m = text.match(new RegExp('^/' + alias + '\\s+(.*)'));
+    return m ? m[1] : '';
+  };
   // 輔助函數：從文字中提取年月參數
   const getYM = () => text.split(/\s+/)[1] || '';
 
