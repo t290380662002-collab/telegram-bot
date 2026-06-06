@@ -150,7 +150,8 @@ bot.use((ctx, next) => {
 // ====== 鍵盤按鈕（完全匹配截圖版面）======
 const mainKeyboard = {
   keyboard: [
-    ['💰 入帳(+) ', '📉 支出(-) ', '📊 顯示統計'],
+    ['💰 入帳(+) ', '📉 支出(-) '],
+    ['📊 顯示統計', '📋 本月明細'],
     ['🌙 手續費', '🛡️ 風控', '❌ 刪除'],
     ['📅 結算預覽', '📝 結算計入', '📤 匯出'],
     ['❓ 幫助']
@@ -411,6 +412,11 @@ bot.on('text', async (ctx, next) => {
   // --- 顯示統計 ---
   if (text === '📊 顯示統計') {
     return transactionHandler.showStatus(ctx);
+  }
+
+  // --- 本月明細（含逐筆記錄）---
+  if (text === '📋 本月明細') {
+    return transactionHandler.showMonthlyDetail(ctx);
   }
 
   // --- 刪除模式 ---

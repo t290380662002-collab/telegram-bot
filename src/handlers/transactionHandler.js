@@ -267,6 +267,90 @@ async function setRiskControl(ctx, rawInput) {
   return ctx.reply(msg);
 }
 
+// ========== 建立月明細訊息（逐筆記錄 + 摘要）==========
+async function buildMonthlyDetail(ctx) {
+  const userId = getScopeId(ctx);
+
+  try {
+    const allSnapshot = await db.collection('transactions')
+      .where('userId', '==', userId)
+      .get();
+
+    if (allSnapshot.empty) return `📭 尚無交易紀錄`;
+
+    const allDocs = [];
+    allSnapshot.forEach(doc => allDocs.push({ id: doc.id, ...doc.data() }));
+    sortByCreatedAtAsc(allDocs);
+
+    const activeDocs = allDocs.filter(d => !d.deleted);
+    const now = new Date();
+    const todayStr = fmtDate(now);
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // 本日
+    const todayDocs = activeDocs.filter(d => fmtDate(d.createdAt) === todayStr);
+    const dayIncome = todayDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
+    const dayExpense = todayDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
+    const dayInCount = todayDocs.filter(d => d.type === 'income').length;
+    const dayOutCount = todayDocs.filter(d => d.type === 'expense').length;
+
+    // 本月
+    const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
+    const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
+    const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthInCount = monthDocs.filter(d => d.type === 'income').length;
+    const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
+    const monthNet = monthIncome - monthExpense;
+
+    // 風控
+    const riskDoc = await db.collection('settings').doc(`risk_${userId}`).get();
+    let riskLimit = 0, riskExpiry = '';
+    if (riskDoc.exists) {
+      riskLimit = riskDoc.data().limit || 0;
+      if (riskDoc.data().expiryDate) {
+        const d = riskDoc.data().expiryDate.toDate ? riskDoc.data().expiryDate.toDate() : new Date(riskDoc.data().expiryDate);
+        riskExpiry = fmtDate(d);
+      }
+    }
+
+    // 前期結餘
+    let carryover = 0;
+    try {
+      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
+      if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
+    } catch (e) { console.error('讀取前期結餘失敗:', e); }
+
+    const grandTotal = monthNet - monthFee + carryover;
+
+    // 逐筆記錄
+    const recordLines = [];
+    for (const d of monthDocs) {
+      const sign = d.type === 'income' ? '+' : (d.type === 'expense' ? '-' : '🌙');
+      const rid = d.recordId ? d.recordId.replace('#', '') : '?';
+      recordLines.push(`(${rid}) ${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)} ${sign}${fmt(d.amount)} [${d.remark || 'W'}]`);
+    }
+
+    const lines = [
+      `🗓 ${currentYearMonth} 本月記錄`,
+      ...recordLines,
+      ``,
+      `------------------------------`,
+      `📊 本日: 入${dayInCount}筆 ${fmt(dayIncome)} / 出${dayOutCount}筆 ${fmt(dayExpense)}`,
+      `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
+      `🌙 手續費: ${fmt(monthFee)}`,
+      `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
+      `💰 前期結餘: ${fmt(carryover)}`,
+      `🔢 總計: ${fmt(grandTotal)} (月計-月計手續費+前期結餘)`
+    ];
+
+    return lines.join('\n');
+  } catch (error) {
+    console.error('明細錯誤:', error);
+    return `❌ 讀取資料時發生錯誤: ${error.message}`;
+  }
+}
+
 // ========== 建立狀態訊息（核心顯示邏輯）==========
 async function buildStatusMessage(ctx) {
   const userId = getScopeId(ctx);
@@ -454,6 +538,12 @@ async function buildRecordStats(ctx, currentRecord) {
 // ========== /顯示 指令 ==========
 async function showStatus(ctx) {
   const msg = await buildStatusMessage(ctx);
+  await ctx.reply(msg);
+}
+
+// ========== 本月明細（含逐筆記錄 + 摘要）==========
+async function showMonthlyDetail(ctx) {
+  const msg = await buildMonthlyDetail(ctx);
   await ctx.reply(msg);
 }
 
@@ -893,6 +983,7 @@ module.exports = {
   deleteByDocId,
   setRiskControl,
   showStatus,
+  showMonthlyDetail,
   getHistory,
   showMonthlyFlow,
   listMonthlyRecords,
