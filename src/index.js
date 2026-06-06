@@ -354,6 +354,7 @@ bot.on('text', async (ctx, next) => {
   const getYM = () => text.split(/\s+/)[1] || '';
 
   if (matchCmd('顯示', '顯示統計', '显示', '显示统计')) return transactionHandler.showStatus(ctx);
+  if (matchCmd('本月明細', '本月明细', '明細', '明细')) return transactionHandler.showMonthlyDetail(ctx);
   if (matchCmd('刪除', '删除')) {
     const parts = text.split(/\s+/).slice(1);
     if (!parts[0]) return ctx.reply('❌ 請輸入編號\n格式: /刪除 #1 或 /刪除 #1 日期');
