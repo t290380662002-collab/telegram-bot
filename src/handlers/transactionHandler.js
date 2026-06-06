@@ -358,15 +358,12 @@ async function buildStatusMessage(ctx) {
       ...monthRecordLines,
       ``,
       `------------------------------`,
-      `本日:`,
-      `入${dayInCount}筆:${fmt(dayIncome)},出${dayOutCount}筆:${fmt(dayExpense)}`,
-      `本月:`,
-      `入${monthInCount}筆:${fmt(monthIncome)},出${monthOutCount}筆:${fmt(monthExpense)}`,
-      `手續費月計:${fmt(monthFee)}`,
-      `風控:${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
-      `前期結餘:${fmt(carryover)}`,
-      `總計:${fmt(grandTotal)}`,
-      `(月計-月計手續費+前期結餘)`
+      `📊 本日: 入${dayInCount}筆 ${fmt(dayIncome)} / 出${dayOutCount}筆 ${fmt(dayExpense)}`,
+      `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
+      `🌙 手續費: ${fmt(monthFee)}`,
+      `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
+      `💰 前期結餘: ${fmt(carryover)}`,
+      `🔢 總計: ${fmt(grandTotal)} (月計-月計手續費+前期結餘)`
     ];
 
     console.log(`[DEBUG buildStatusMessage] result preview: "${lines.join('\n').substring(0, 100)}"`);
