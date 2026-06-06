@@ -344,20 +344,10 @@ async function buildStatusMessage(ctx) {
     // --- 總計 ---
     const grandTotal = monthNet - monthFee + carryover;
 
-    // --- 本月逐筆紀錄 ---
-    const monthRecordLines = [];
-    for (const d of monthDocs) {
-      const sign = d.type === 'income' ? '+' : (d.type === 'expense' ? '-' : '🌙');
-      const rid = d.recordId ? d.recordId.replace('#', '') : '?';
-      monthRecordLines.push(`(${rid}) ${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)} ${sign}${fmt(d.amount)} [${d.remark || 'W'})]`);
-    }
-
-    // --- 組裝訊息 ---
+    // --- 組裝訊息（僅顯示摘要，不含逐筆記錄）---
     const lines = [
-      `🗓 ${currentYearMonth} 本月記錄`,
-      ...monthRecordLines,
+      `🗓 ${currentYearMonth} 本月統計`,
       ``,
-      `------------------------------`,
       `📊 本日: 入${dayInCount}筆 ${fmt(dayIncome)} / 出${dayOutCount}筆 ${fmt(dayExpense)}`,
       `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
       `🌙 手續費: ${fmt(monthFee)}`,
