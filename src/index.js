@@ -4,12 +4,13 @@ const https = require('https');
 const transactionHandler = require('./handlers/transactionHandler');
 const { admin, db, firebaseReady } = require('./firebase');
 
-// ====== 工具函數 ======
+// ====== 工具函數 (GMT+8) ======
 function fmtDate(date) {
   const d = date instanceof Date ? date : (date && date.toDate ? date.toDate() : new Date(date));
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
+  const tz = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  const yyyy = tz.getUTCFullYear();
+  const mm = String(tz.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(tz.getUTCDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
