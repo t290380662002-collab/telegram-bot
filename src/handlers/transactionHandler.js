@@ -59,20 +59,35 @@ function fmt(n) {
   return num % 1 === 0 ? num.toString() : num.toFixed(1);
 }
 
-// 格式化時間 HH:MM
-function fmtTime(date) {
+// 時區轉換：UTC → GMT+8
+function toTZ(date) {
   const d = date instanceof Date ? date : (date && date.toDate ? date.toDate() : new Date(date));
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
+  return new Date(d.getTime() + 8 * 60 * 60 * 1000);
+}
+
+// 取得當前 GMT+8 時間
+function nowTZ() { return toTZ(new Date()); }
+
+// 取得當前 GMT+8 的年月字串 (YYYY-MM)
+function yearMonthTZ() {
+  const d = nowTZ();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// 格式化時間 HH:MM (GMT+8)
+function fmtTime(date) {
+  const d = toTZ(date);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
 }
 
-// 格式化日期 YYYY-MM-DD
+// 格式化日期 YYYY-MM-DD (GMT+8)
 function fmtDate(date) {
-  const d = date instanceof Date ? date : (date && date.toDate ? date.toDate() : new Date(date));
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
+  const d = toTZ(date);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd}`;
 }
 
@@ -91,7 +106,7 @@ async function addIncome(ctx, amount, remark = "W") {
     operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
-    yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+    yearMonth: yearMonthTZ()
   };
 
   await db.collection('transactions').add(data);
@@ -127,7 +142,7 @@ async function addExpense(ctx, amount, remark = "W") {
     operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
-    yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+    yearMonth: yearMonthTZ()
   };
 
   await db.collection('transactions').add(data);
@@ -163,7 +178,7 @@ async function addFee(ctx, amount, remark = "W") {
     operatorId: ctx.from.id,
     recordId: `#${recordId}`,
     createdAt: new Date(),
-    yearMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+    yearMonth: yearMonthTZ()
   };
 
   await db.collection('transactions').add(data);
@@ -285,7 +300,7 @@ async function buildMonthlyDetail(ctx) {
     const activeDocs = allDocs.filter(d => !d.deleted);
     const now = new Date();
     const todayStr = fmtDate(now);
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentYearMonth = yearMonthTZ();
 
     // 本日
     const todayDocs = activeDocs.filter(d => fmtDate(d.createdAt) === todayStr);
@@ -377,7 +392,7 @@ async function buildStatusMessage(ctx) {
 
     const now = new Date();
     const todayStr = fmtDate(now);
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentYearMonth = yearMonthTZ();
     // --- 取得最新一筆 ---
     const latest = activeDocs[activeDocs.length - 1];
     const latestSign = latest.type === 'income' ? '+' : (latest.type === 'expense' ? '-' : '');
@@ -467,7 +482,7 @@ async function buildRecordStats(ctx, currentRecord) {
 
     const now = new Date();
     const todayStr = fmtDate(now);
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentYearMonth = yearMonthTZ();
 
     // --- 當前記錄行 ---
     const sign = currentRecord.type === 'income' ? '+' : (currentRecord.type === 'expense' ? '-' : '🌙-');
@@ -589,7 +604,7 @@ async function showMonthlyFlow(ctx, yearMonth) {
 
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
     const now = new Date();
-    yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    yearMonth = yearMonthTZ();
   }
 
   try {
@@ -631,7 +646,7 @@ async function listMonthlyRecords(ctx, yearMonth) {
 
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
     const now = new Date();
-    yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    yearMonth = yearMonthTZ();
   }
 
   try {
@@ -675,7 +690,7 @@ async function exportMonthlyData(ctx, yearMonth) {
 
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
     const now = new Date();
-    yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    yearMonth = yearMonthTZ();
   }
 
   try {
@@ -778,7 +793,7 @@ async function previewSettlement(ctx, yearMonth) {
 
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
     const now = new Date();
-    yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    yearMonth = yearMonthTZ();
   }
 
   try {
@@ -890,7 +905,7 @@ async function confirmSettlement(ctx, yearMonth) {
 async function listCurrentMonthForDelete(ctx) {
   const userId = getScopeId(ctx);
   const now = new Date();
-  const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const yearMonth = yearMonthTZ();
 
   try {
     const snapshot = await db.collection('transactions')
