@@ -711,21 +711,19 @@ async function exportMonthlyData(ctx, yearMonth) {
     const wsData = [];
     
     // 標題列
-    wsData.push(['編號', '類型', '金額', '日期', '時間', '備註', '操作人員ID']);
+    wsData.push(['編號', '類型', '金額', '日期', '時間', '備註']);
 
     // 資料列
     const activeDocsForStats = docs.filter(d => !d.deleted);
     for (const data of docs) {
       const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費');
-      const opId = data.deleted ? (data.deletedBy || '') : (data.operatorId || '');
       wsData.push([
         data.recordId || '?',
         typeName,
         data.amount,
         fmtDate(data.createdAt),
         fmtTime(data.createdAt),
-        data.remark || 'W',
-        opId
+        data.remark || 'W'
       ]);
     }
 
@@ -768,8 +766,7 @@ async function exportMonthlyData(ctx, yearMonth) {
       { wch: 15 },
       { wch: 12 },
       { wch: 10 },
-      { wch: 12 },
-      { wch: 14 }
+      { wch: 12 }
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, '出入帳明細');
