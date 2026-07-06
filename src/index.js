@@ -513,9 +513,8 @@ bot.on('text', async (ctx, next) => {
     const parts = text.trim().split(/\s+/);
     const amount = parseFloat(parts[0]);
     if (isNaN(amount) || amount <= 0) {
-      // 模式保持不刪除，讓用戶重新輸入
-      const modeLabel = mode === 'income' ? '入帳' : mode === 'expense' ? '支出' : '手續費';
-      return ctx.reply(`❌ 請輸入有效的正數金額\n\n目前仍在 ${modeLabel} 模式\n直接輸入金額即可：\n• 無備註：10000\n• 有備註：10000 C`);
+      userInputMode.delete(inputModeKey);
+      return ctx.reply('❌ 請輸入有效的正數金額\n模式已取消，請重新點擊按鈕');
     }
     // 備註：無則自動設為 W
     const remark = parts.slice(1).join(' ') || 'W';
