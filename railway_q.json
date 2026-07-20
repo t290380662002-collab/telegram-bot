@@ -1,0 +1,1 @@
+{"query":"{ project(id:\"059757fe-72fa-4baf-b5dd-0f39e3d26c00\"){ name deployments(first:5){ edges{ node{ id status createdAt environment{ name } service{ name } } } } } }"}

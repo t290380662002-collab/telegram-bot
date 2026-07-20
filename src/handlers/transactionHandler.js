@@ -707,7 +707,7 @@ async function listMonthlyRecords(ctx, yearMonth) {
 
     for (const data of docs) {
       const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費';
+      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
       const time = fmtTime(data.createdAt);
       
       message += `${count}. ${icon} ${typeName} | ${fmt(data.amount)} | ${data.recordId || '?'} | ${time}\n`;
@@ -755,7 +755,7 @@ async function exportMonthlyData(ctx, yearMonth) {
     // 資料列
     const activeDocsForStats = docs.filter(d => !d.deleted);
     for (const data of docs) {
-      const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費');
+      const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費');
       wsData.push([
         data.recordId || '?',
         typeName,
@@ -1016,7 +1016,7 @@ async function deleteByDocId(ctx, docId) {
       return ctx.reply('❌ 找不到該記錄，可能已被刪除');
     }
     const data = doc.data();
-    const typeLabel = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費';
+    const typeLabel = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
     await docRef.update({ deleted: true, deletedAt: new Date(), deletedBy: ctx.from.id });
     await ctx.reply(
       `✅ 已刪除\n\n` +
