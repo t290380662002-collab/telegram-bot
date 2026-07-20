@@ -153,7 +153,8 @@ const mainKeyboard = {
   keyboard: [
     ['💰 入帳(+) ', '📉 支出(-) '],
     ['📊 顯示統計', '📋 本月明細'],
-    ['🌙 手續費', '🛡️ 風控', '❌ 刪除'],
+    ['🌙 手續費', '🛂 代理費'],
+    ['🛡️ 風控', '❌ 刪除'],
     ['📅 結算預覽', '📝 結算計入', '📤 匯出'],
     ['❓ 幫助']
   ],
@@ -381,6 +382,13 @@ bot.on('text', async (ctx, next) => {
     if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /手續費 100 或 /手續費 100 C');
     return transactionHandler.addFee(ctx, amt, parts.slice(1).join(' ') || 'W');
   }
+  if (matchCmd('代理費', '代理费')) {
+    const input = cmdArg('代理費') || cmdArg('代理费');
+    const parts = input.split(/\s+/);
+    const amt = parseFloat(parts[0]);
+    if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /代理費 100 或 /代理費 100 C');
+    return transactionHandler.addAgencyFee(ctx, amt, parts.slice(1).join(' ') || 'W');
+  }
 
   // --- 其他 / 開頭的指令（/+ 和 /- 除外）：交給 bot.command() 處理 ---
   if (text.startsWith('/') && !text.startsWith('/+') && !text.startsWith('/-')) {
@@ -407,6 +415,14 @@ bot.on('text', async (ctx, next) => {
   if (text === '🌙 手續費') {
     userInputMode.set(inputModeKey, 'fee');
     return ctx.reply(`請輸入手續費金額：
+• 無備註：100（自動設為 W）
+• 有備註：100 C`);
+  }
+
+  // --- 處理代理費模式 ---
+  if (text === '🛂 代理費') {
+    userInputMode.set(inputModeKey, 'agencyFee');
+    return ctx.reply(`請輸入代理費金額：
 • 無備註：100（自動設為 W）
 • 有備註：100 C`);
   }
@@ -527,6 +543,8 @@ bot.on('text', async (ctx, next) => {
         return transactionHandler.addExpense(ctx, amount, remark);
       case 'fee':
         return transactionHandler.addFee(ctx, amount, remark);
+      case 'agencyFee':
+        return transactionHandler.addAgencyFee(ctx, amount, remark);
       default:
         return;
     }

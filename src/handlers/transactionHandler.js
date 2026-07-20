@@ -194,6 +194,37 @@ async function addFee(ctx, amount, remark = "W") {
   );
 }
 
+// ========== 代理費 ==========
+async function addAgencyFee(ctx, amount, remark = "W") {
+  const userId = getScopeId(ctx);
+  const userName = ctx.from.username || ctx.from.first_name || '未知用戶';
+  const recordId = await getNextRecordId(userId);
+
+  const data = {
+    type: 'agencyFee',
+    remark: remark,
+    amount: parseFloat(amount),
+    userId,
+    userName,
+    operatorId: ctx.from.id,
+    recordId: `#${recordId}`,
+    createdAt: new Date(),
+    yearMonth: yearMonthTZ()
+  };
+
+  await db.collection('transactions').add(data);
+
+  const stats = await buildRecordStats(ctx, data);
+
+  await ctx.reply(
+    `🛂 代理費記錄成功!\n\n` +
+    `💰 金額: ${fmt(amount)}\n` +
+    `🆔 編號: #${recordId}\n` +
+    `📅 日期: ${fmtDate(data.createdAt)}\n\n` +
+    stats
+  );
+}
+
 // ========== 刪除 ==========
 async function deleteRecord(ctx, recordId, dateStr) {
   const userId = getScopeId(ctx);
@@ -225,7 +256,7 @@ async function deleteRecord(ctx, recordId, dateStr) {
   });
 
   if (deleted) {
-    const typeLabel = deletedDoc.type === 'income' ? '收入' : deletedDoc.type === 'expense' ? '支出' : '手續費';
+    const typeLabel = deletedDoc.type === 'income' ? '收入' : deletedDoc.type === 'expense' ? '支出' : deletedDoc.type === 'agencyFee' ? '代理費' : '手續費';
     return ctx.reply(
       `✅ 刪除成功!\n\n` +
       `類型: ${typeLabel}\n` +
@@ -313,7 +344,7 @@ async function buildMonthlyDetail(ctx) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -403,7 +434,7 @@ async function buildStatusMessage(ctx) {
     const todayDocs = activeDocs.filter(d => fmtDate(d.createdAt) === todayStr);
     const dayIncome = todayDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const dayExpense = todayDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const dayFee = todayDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const dayFee = todayDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
     const dayInCount = todayDocs.filter(d => d.type === 'income').length;
     const dayOutCount = todayDocs.filter(d => d.type === 'expense').length;
 
@@ -411,7 +442,7 @@ async function buildStatusMessage(ctx) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -502,7 +533,7 @@ async function buildRecordStats(ctx, currentRecord) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -586,7 +617,7 @@ async function getHistory(ctx) {
 
     for (const data of docsToShow) {
       const typeIcon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : '手續費';
+      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
       message += `${count}. ${typeIcon} [${typeName}] ${fmt(data.amount)} - ${data.recordId || '?'}\n`;
       count++;
     }
@@ -623,7 +654,7 @@ async function showMonthlyFlow(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
     const netAmount = totalIncome - totalExpense;
 
     let message = `📊 ${yearMonth} 月度流量報告\n\n`;
@@ -730,7 +761,7 @@ async function exportMonthlyData(ctx, yearMonth) {
     // 統計列
     const totalIncome = activeDocsForStats.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocsForStats.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocsForStats.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocsForStats.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
 
     wsData.push([]);
     wsData.push(['統計', '', '', '', '']);
@@ -809,7 +840,7 @@ async function previewSettlement(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
 
     // 前期結餘
     let carryover = 0;
@@ -860,7 +891,7 @@ async function confirmSettlement(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
     const netAmount = totalIncome - totalExpense - totalFee;
 
     // 寫入結算記錄
@@ -929,7 +960,7 @@ async function listCurrentMonthForDelete(ctx) {
     for (const item of items) {
       const data = item.data;
       const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '入帳' : data.type === 'expense' ? '支出' : '手續';
+      const typeName = data.type === 'income' ? '入帳' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續';
       const date = fmtDate(data.createdAt);
       const time = fmtTime(data.createdAt);
       const rid = (data.recordId || '?').padEnd(5);
