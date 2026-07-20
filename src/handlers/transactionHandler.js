@@ -386,6 +386,7 @@ async function buildMonthlyDetail(ctx) {
       `📊 本日: 入${dayInCount}筆 ${fmt(dayIncome)} / 出${dayOutCount}筆 ${fmt(dayExpense)}`,
       `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
       `🌙 手續費: ${fmt(monthFee)}`,
+      `🛂 代理費: ${fmt(monthAgencyFee)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
       `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
@@ -484,6 +485,7 @@ async function buildStatusMessage(ctx) {
       `📊 本日: 入${dayInCount}筆 ${fmt(dayIncome)} / 出${dayOutCount}筆 ${fmt(dayExpense)}`,
       `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
       `🌙 手續費: ${fmt(monthFee)}`,
+      `🛂 代理費: ${fmt(monthAgencyFee)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
       `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
@@ -572,6 +574,7 @@ async function buildRecordStats(ctx, currentRecord) {
       `本月:`,
       `入${monthInCount}筆:${fmt(monthIncome)},出${monthOutCount}筆:${fmt(monthExpense)}`,
       `手續費月計:${fmt(monthFee)}`,
+      `代理費月計:${fmt(monthAgencyFee)}`,
       `風控:${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `前期結餘:${fmt(carryover)}`,
       `總計:${fmt(grandTotal)}`,
