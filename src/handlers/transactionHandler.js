@@ -344,7 +344,8 @@ async function buildMonthlyDetail(ctx) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -367,7 +368,7 @@ async function buildMonthlyDetail(ctx) {
       if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
     } catch (e) { console.error('讀取前期結餘失敗:', e); }
 
-    const grandTotal = monthNet - monthFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
 
     // 逐筆記錄
     const recordLines = [];
@@ -387,7 +388,7 @@ async function buildMonthlyDetail(ctx) {
       `🌙 手續費: ${fmt(monthFee)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
-      `🔢 總計: ${fmt(grandTotal)} (月計-月計手續費+前期結餘)`
+      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
     ];
 
     return lines.join('\n');
@@ -434,7 +435,8 @@ async function buildStatusMessage(ctx) {
     const todayDocs = activeDocs.filter(d => fmtDate(d.createdAt) === todayStr);
     const dayIncome = todayDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const dayExpense = todayDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const dayFee = todayDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
+    const dayFee = todayDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const dayAgencyFee = todayDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
     const dayInCount = todayDocs.filter(d => d.type === 'income').length;
     const dayOutCount = todayDocs.filter(d => d.type === 'expense').length;
 
@@ -442,7 +444,8 @@ async function buildStatusMessage(ctx) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -472,7 +475,7 @@ async function buildStatusMessage(ctx) {
     }
 
     // --- 總計 ---
-    const grandTotal = monthNet - monthFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
 
     // --- 組裝訊息（僅顯示摘要，不含逐筆記錄）---
     const lines = [
@@ -483,7 +486,7 @@ async function buildStatusMessage(ctx) {
       `🌙 手續費: ${fmt(monthFee)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
-      `🔢 總計: ${fmt(grandTotal)} (月計-月計手續費+前期結餘)`
+      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
     ];
 
     console.log(`[DEBUG buildStatusMessage] result preview: "${lines.join('\n').substring(0, 100)}"`);
@@ -533,7 +536,8 @@ async function buildRecordStats(ctx, currentRecord) {
     const monthDocs = activeDocs.filter(d => d.yearMonth === currentYearMonth);
     const monthIncome = monthDocs.filter(d => d.type === 'income').reduce((s, d) => s + d.amount, 0);
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
-    const monthFee = monthDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((s, d) => s + d.amount, 0);
+    const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
+    const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -557,7 +561,7 @@ async function buildRecordStats(ctx, currentRecord) {
     if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
 
     // --- 總計 ---
-    const grandTotal = monthNet - monthFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
 
     const lines = [
       `(${rid}) ${recordDate} ${recordTime} ${sign}${fmt(currentRecord.amount)} [${recordRemark}]`,
@@ -571,7 +575,7 @@ async function buildRecordStats(ctx, currentRecord) {
       `風控:${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `前期結餘:${fmt(carryover)}`,
       `總計:${fmt(grandTotal)}`,
-      `(月計-月計手續費+前期結餘)`
+      `(月計-手續費-代理費+前期結餘)`
     ];
 
     return lines.join('\n');
@@ -654,7 +658,8 @@ async function showMonthlyFlow(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
     const netAmount = totalIncome - totalExpense;
 
     let message = `📊 ${yearMonth} 月度流量報告\n\n`;
@@ -761,13 +766,15 @@ async function exportMonthlyData(ctx, yearMonth) {
     // 統計列
     const totalIncome = activeDocsForStats.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocsForStats.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocsForStats.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocsForStats.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalAgencyFee = activeDocsForStats.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
 
     wsData.push([]);
     wsData.push(['統計', '', '', '', '']);
     wsData.push(['入帳筆數', activeDocsForStats.filter(d => d.type === 'income').length, '入帳總計', totalIncome]);
     wsData.push(['支出筆數', activeDocsForStats.filter(d => d.type === 'expense').length, '支出總計', totalExpense]);
     wsData.push(['手續費總計', totalFee, '', '']);
+    wsData.push(['代理費總計', totalAgencyFee, '', '']);
     wsData.push(['已刪除筆數', docs.filter(d => d.deleted).length, '', '']);
 
     // 風控
@@ -784,7 +791,7 @@ async function exportMonthlyData(ctx, yearMonth) {
     // 總計
     const grandTotal = totalIncome - totalExpense - totalFee + carryover;
     wsData.push(['總計', grandTotal, '', '']);
-    wsData.push(['公式', '月計-月計手續費+前期結餘', '', '']);
+    wsData.push(['公式', '月計-手續費-代理費+前期結餘', '', '']);
 
     // --- 生成 Excel ---
     const wb = XLSX.utils.book_new();
@@ -840,7 +847,8 @@ async function previewSettlement(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
 
     // 前期結餘
     let carryover = 0;
@@ -891,7 +899,8 @@ async function confirmSettlement(ctx, yearMonth) {
 
     const totalIncome = activeDocs.filter(d => d.type === 'income').reduce((sum, d) => sum + d.amount, 0);
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
-    const totalFee = activeDocs.filter(d => (d.type === 'fee' || d.type === 'agencyFee')).reduce((sum, d) => sum + d.amount, 0);
+    const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
+    const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
     const netAmount = totalIncome - totalExpense - totalFee;
 
     // 寫入結算記錄
@@ -1022,6 +1031,7 @@ module.exports = {
   addIncome,
   addExpense,
   addFee,
+  addAgencyFee,
   deleteRecord,
   deleteByDocId,
   setRiskControl,
