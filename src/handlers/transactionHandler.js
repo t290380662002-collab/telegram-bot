@@ -74,6 +74,33 @@ function yearMonthTZ() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+// 取得某月的前期結餘（上月月底餘額）
+// 優先取「小於該月的最近一次結算的 netAmount」；若無更早結算，則退回期初餘額（settings.carryover）。
+// 重點：前期結餘只從「已結算月份」快照推算，因此重複結算同一個月不會造成累加錯誤。
+async function getPriorBalance(userId, yearMonth) {
+  let opening = 0;
+  try {
+    const c = await db.collection('settings').doc(`carryover_${userId}`).get();
+    if (c.exists) opening = c.data().amount || 0;
+  } catch (e) {}
+
+  let prior = opening;
+  try {
+    const snap = await db.collection('settlements').where('userId', '==', userId).get();
+    let best = null;
+    snap.forEach(d => {
+      const ym = d.data().yearMonth;
+      const net = d.data().netAmount;
+      if (ym != null && net != null && ym < yearMonth) {
+        if (best === null || ym > best.ym) best = { ym, net };
+      }
+    });
+    if (best) prior = best.net;
+  } catch (e) {}
+
+  return prior;
+}
+
 // 格式化時間 HH:MM (GMT+8)
 function fmtTime(date) {
   const d = toTZ(date);
@@ -361,12 +388,8 @@ async function buildMonthlyDetail(ctx) {
       }
     }
 
-    // 前期結餘
-    let carryover = 0;
-    try {
-      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-      if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
-    } catch (e) { console.error('讀取前期結餘失敗:', e); }
+    // 前期結餘（從結算快照取得，避免重複結算累加）
+    const carryover = await getPriorBalance(userId, currentYearMonth);
 
     const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
 
@@ -464,16 +487,8 @@ async function buildStatusMessage(ctx) {
       }
     }
 
-    // --- 前期結餘 = 從 settings 讀取（結算後寫入的值）---
-    let carryover = 0;
-    try {
-      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-      if (carryDoc.exists) {
-        carryover = carryDoc.data().amount || 0;
-      }
-    } catch (e) {
-      console.error('讀取前期結餘失敗:', e);
-    }
+    // --- 前期結餘（從結算快照取得，避免重複結算累加）---
+    const carryover = await getPriorBalance(userId, currentYearMonth);
 
     // --- 總計 ---
     const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
@@ -557,10 +572,8 @@ async function buildRecordStats(ctx, currentRecord) {
       }
     }
 
-    // --- 前期結餘 ---
-    let carryover = 0;
-    const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-    if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
+    // --- 前期結餘（從結算快照取得）---
+    const carryover = await getPriorBalance(userId, currentYearMonth);
 
     // --- 總計 ---
     const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
@@ -785,10 +798,8 @@ async function exportMonthlyData(ctx, yearMonth) {
     const riskLimit = riskDoc.exists ? riskDoc.data().limit : 0;
     wsData.push(['風控限額', riskLimit, '', '']);
 
-    // 前期結餘
-    let carryover = 0;
-    const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-    if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
+    // 前期結餘（從結算快照取得）
+    const carryover = await getPriorBalance(userId, yearMonth);
     wsData.push(['前期結餘', carryover, '', '']);
 
     // 總計
@@ -853,12 +864,8 @@ async function previewSettlement(ctx, yearMonth) {
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
 
-    // 前期結餘
-    let carryover = 0;
-    try {
-      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-      if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
-    } catch (e) {}
+    // 前期結餘（從結算快照取得，避免重複結算累加）
+    const carryover = await getPriorBalance(userId, yearMonth);
 
     const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
 
@@ -906,12 +913,8 @@ async function confirmSettlement(ctx, yearMonth) {
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
 
-    // 前期結餘
-    let carryover = 0;
-    try {
-      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
-      if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
-    } catch (e) {}
+    // 前期結餘（從結算快照取得，避免重複結算累加）
+    const carryover = await getPriorBalance(userId, yearMonth);
 
     const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
 
@@ -928,13 +931,9 @@ async function confirmSettlement(ctx, yearMonth) {
       settledAt: new Date()
     });
 
-    // 將結算淨額存為前期結餘（供下個月狀態顯示使用）
-    await db.collection('settings').doc(`carryover_${userId}`).set({
-      userId,
-      amount: netAmount,
-      fromYearMonth: yearMonth,
-      updatedAt: new Date()
-    });
+    // 注意：不再改寫 settings.carryover（期初餘額）。
+    // 前期結餘改由 getPriorBalance() 從 settlements 快照取得，
+    // 這樣重複結算同一個月不會造成累加錯誤。
 
     let message = `✅ ${yearMonth} 結算成功並已存入資料庫\n`;
     message += `----------------------------\n`;
