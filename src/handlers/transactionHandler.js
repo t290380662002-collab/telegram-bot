@@ -860,12 +860,13 @@ async function previewSettlement(ctx, yearMonth) {
       if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
     } catch (e) {}
 
-    const netAmount = totalIncome - totalExpense - totalFee + carryover;
+    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
 
     let message = `📋 ${yearMonth} 結算預覽\n\n`;
     message += `📥 入帳總計: ${fmt(totalIncome)}\n`;
     message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
+    message += `🛂 代理費總計: ${fmt(totalAgencyFee)}\n`;
     message += `💰 結轉餘額: ${fmt(totalIncome - totalExpense)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 共 ${docs.length} 筆記錄\n\n`;
@@ -904,7 +905,15 @@ async function confirmSettlement(ctx, yearMonth) {
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
-    const netAmount = totalIncome - totalExpense - totalFee;
+
+    // 前期結餘
+    let carryover = 0;
+    try {
+      const carryDoc = await db.collection('settings').doc(`carryover_${userId}`).get();
+      if (carryDoc.exists) carryover = carryDoc.data().amount || 0;
+    } catch (e) {}
+
+    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
 
     // 寫入結算記錄
     await db.collection('settlements').add({
@@ -913,6 +922,7 @@ async function confirmSettlement(ctx, yearMonth) {
       totalIncome,
       totalExpense,
       totalFee,
+      totalAgencyFee,
       netAmount,
       recordCount: docs.length,
       settledAt: new Date()
@@ -931,6 +941,7 @@ async function confirmSettlement(ctx, yearMonth) {
     message += `📥 入帳總計: ${fmt(totalIncome)}\n`;
     message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
+    message += `🛂 代理費總計: ${fmt(totalAgencyFee)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 處理單據: ${docs.length} 筆`;
 
