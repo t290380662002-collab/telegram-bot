@@ -154,6 +154,7 @@ const mainKeyboard = {
     ['💰 入帳(+) ', '📉 支出(-) '],
     ['📊 顯示統計', '📋 本月明細'],
     ['🌙 手續費', '🛂 代理費'],
+    ['🔼 上發', '🔽 下發'],
     ['🛡️ 風控', '❌ 刪除'],
     ['📅 結算預覽', '📝 結算計入', '📤 匯出'],
     ['❓ 幫助']
@@ -272,6 +273,8 @@ bot.start(async (ctx) => {
         `💰 入帳: /+ 金額\n` +
         `📉 支出: /- 金額\n` +
         `🌙 手續費: /手續費 金額\n` +
+        `🔼 上發: /上發 金額\n` +
+        `🔽 下發: /下發 金額\n` +
         `📊 顯示統計: /顯示統計\n` +
         `🗑️ 刪除: /刪除 編號 日期\n` +
         `🛡️ 風控: /風控 金額\n\n` +
@@ -389,6 +392,20 @@ bot.on('text', async (ctx, next) => {
     if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /代理費 100 或 /代理費 100 C');
     return transactionHandler.addAgencyFee(ctx, amt, parts.slice(1).join(' ') || 'W');
   }
+  if (matchCmd('上發', '上发')) {
+    const input = cmdArg('上發') || cmdArg('上发');
+    const parts = input.split(/\s+/);
+    const amt = parseFloat(parts[0]);
+    if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /上發 100 或 /上發 100 C');
+    return transactionHandler.addUpIssue(ctx, amt, parts.slice(1).join(' ') || 'W');
+  }
+  if (matchCmd('下發', '下发')) {
+    const input = cmdArg('下發') || cmdArg('下发');
+    const parts = input.split(/\s+/);
+    const amt = parseFloat(parts[0]);
+    if (isNaN(amt) || amt <= 0) return ctx.reply('❌ 請輸入金額\n例如: /下發 100 或 /下發 100 C');
+    return transactionHandler.addDownIssue(ctx, amt, parts.slice(1).join(' ') || 'W');
+  }
 
   // --- 其他 / 開頭的指令（/+ 和 /- 除外）：交給 bot.command() 處理 ---
   if (text.startsWith('/') && !text.startsWith('/+') && !text.startsWith('/-')) {
@@ -423,6 +440,22 @@ bot.on('text', async (ctx, next) => {
   if (text === '🛂 代理費') {
     userInputMode.set(inputModeKey, 'agencyFee');
     return ctx.reply(`請輸入代理費金額：
+• 無備註：100（自動設為 W）
+• 有備註：100 C`);
+  }
+
+  // --- 處理上發模式 ---
+  if (text === '🔼 上發') {
+    userInputMode.set(inputModeKey, 'upIssue');
+    return ctx.reply(`請輸入上發金額：
+• 無備註：100（自動設為 W）
+• 有備註：100 C`);
+  }
+
+  // --- 處理下發模式 ---
+  if (text === '🔽 下發') {
+    userInputMode.set(inputModeKey, 'downIssue');
+    return ctx.reply(`請輸入下發金額：
 • 無備註：100（自動設為 W）
 • 有備註：100 C`);
   }
@@ -492,6 +525,8 @@ bot.on('text', async (ctx, next) => {
       `💰 入帳: /+ 金額 或 直接輸入 +金額\n` +
       `📉 支出: /- 金額 或 直接輸入 -金額\n` +
       `🌙 手續費: /手續費 金額\n` +
+      `🔼 上發: /上發 金額\n` +
+      `🔽 下發: /下發 金額\n` +
       `📊 顯示統計: /顯示統計\n` +
       `🗑️ 刪除: /刪除 編號 日期\n` +
       `🛡️ 風控: /風控 金額\n` +
@@ -545,6 +580,10 @@ bot.on('text', async (ctx, next) => {
         return transactionHandler.addFee(ctx, amount, remark);
       case 'agencyFee':
         return transactionHandler.addAgencyFee(ctx, amount, remark);
+      case 'upIssue':
+        return transactionHandler.addUpIssue(ctx, amount, remark);
+      case 'downIssue':
+        return transactionHandler.addDownIssue(ctx, amount, remark);
       default:
         return;
     }

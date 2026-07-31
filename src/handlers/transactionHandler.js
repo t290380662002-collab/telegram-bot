@@ -252,6 +252,68 @@ async function addAgencyFee(ctx, amount, remark = "W") {
   );
 }
 
+// ========== 上發（+）==========
+async function addUpIssue(ctx, amount, remark = "W") {
+  const userId = getScopeId(ctx);
+  const userName = ctx.from.username || ctx.from.first_name || '未知用戶';
+  const recordId = await getNextRecordId(userId);
+
+  const data = {
+    type: 'upIssue',
+    remark: remark,
+    amount: parseFloat(amount),
+    userId,
+    userName,
+    operatorId: ctx.from.id,
+    recordId: `#${recordId}`,
+    createdAt: new Date(),
+    yearMonth: yearMonthTZ()
+  };
+
+  await db.collection('transactions').add(data);
+
+  const stats = await buildRecordStats(ctx, data);
+
+  await ctx.reply(
+    `🔼 上發記錄成功!\n\n` +
+    `💰 金額: ${fmt(amount)}\n` +
+    `🆔 編號: #${recordId}\n` +
+    `📅 日期: ${fmtDate(data.createdAt)}\n\n` +
+    stats
+  );
+}
+
+// ========== 下發（-）==========
+async function addDownIssue(ctx, amount, remark = "W") {
+  const userId = getScopeId(ctx);
+  const userName = ctx.from.username || ctx.from.first_name || '未知用戶';
+  const recordId = await getNextRecordId(userId);
+
+  const data = {
+    type: 'downIssue',
+    remark: remark,
+    amount: parseFloat(amount),
+    userId,
+    userName,
+    operatorId: ctx.from.id,
+    recordId: `#${recordId}`,
+    createdAt: new Date(),
+    yearMonth: yearMonthTZ()
+  };
+
+  await db.collection('transactions').add(data);
+
+  const stats = await buildRecordStats(ctx, data);
+
+  await ctx.reply(
+    `🔽 下發記錄成功!\n\n` +
+    `💰 金額: ${fmt(amount)}\n` +
+    `🆔 編號: #${recordId}\n` +
+    `📅 日期: ${fmtDate(data.createdAt)}\n\n` +
+    stats
+  );
+}
+
 // ========== 刪除 ==========
 async function deleteRecord(ctx, recordId, dateStr) {
   const userId = getScopeId(ctx);
@@ -283,7 +345,7 @@ async function deleteRecord(ctx, recordId, dateStr) {
   });
 
   if (deleted) {
-    const typeLabel = deletedDoc.type === 'income' ? '收入' : deletedDoc.type === 'expense' ? '支出' : deletedDoc.type === 'agencyFee' ? '代理費' : '手續費';
+    const typeLabel = deletedDoc.type === 'income' ? '收入' : deletedDoc.type === 'expense' ? '支出' : deletedDoc.type === 'agencyFee' ? '代理費' : deletedDoc.type === 'upIssue' ? '上發' : deletedDoc.type === 'downIssue' ? '下發' : '手續費';
     return ctx.reply(
       `✅ 刪除成功!\n\n` +
       `類型: ${typeLabel}\n` +
@@ -373,6 +435,8 @@ async function buildMonthlyDetail(ctx) {
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
     const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
     const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
+    const monthUpIssue = monthDocs.filter(d => d.type === 'upIssue').reduce((s, d) => s + d.amount, 0);
+    const monthDownIssue = monthDocs.filter(d => d.type === 'downIssue').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -391,12 +455,12 @@ async function buildMonthlyDetail(ctx) {
     // 前期結餘（從結算快照取得，避免重複結算累加）
     const carryover = await getPriorBalance(userId, currentYearMonth);
 
-    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + monthUpIssue - monthDownIssue + carryover;
 
     // 逐筆記錄
     const recordLines = [];
     for (const d of monthDocs) {
-      const sign = d.type === 'income' ? '+' : (d.type === 'expense' ? '-' : '🌙');
+      const sign = d.type === 'income' ? '+' : d.type === 'expense' ? '-' : d.type === 'upIssue' ? '🔼' : d.type === 'downIssue' ? '🔽' : d.type === 'agencyFee' ? '🛂' : '🌙';
       const rid = d.recordId ? d.recordId.replace('#', '') : '?';
       recordLines.push(`(${rid}) ${fmtDate(d.createdAt)} ${fmtTime(d.createdAt)} ${sign}${fmt(d.amount)} [${d.remark || 'W'}]`);
     }
@@ -410,9 +474,11 @@ async function buildMonthlyDetail(ctx) {
       `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
       `🌙 手續費: ${fmt(monthFee)}`,
       `🛂 代理費: ${fmt(monthAgencyFee)}`,
+      `🔼 上發: ${fmt(monthUpIssue)}`,
+      `🔽 下發: ${fmt(monthDownIssue)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
-      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
+      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+上發-下發+前期結餘)`
     ];
 
     return lines.join('\n');
@@ -470,6 +536,8 @@ async function buildStatusMessage(ctx) {
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
     const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
     const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
+    const monthUpIssue = monthDocs.filter(d => d.type === 'upIssue').reduce((s, d) => s + d.amount, 0);
+    const monthDownIssue = monthDocs.filter(d => d.type === 'downIssue').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -491,7 +559,7 @@ async function buildStatusMessage(ctx) {
     const carryover = await getPriorBalance(userId, currentYearMonth);
 
     // --- 總計 ---
-    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + monthUpIssue - monthDownIssue + carryover;
 
     // --- 組裝訊息（僅顯示摘要，不含逐筆記錄）---
     const lines = [
@@ -501,9 +569,11 @@ async function buildStatusMessage(ctx) {
       `📊 本月: 入${monthInCount}筆 ${fmt(monthIncome)} / 出${monthOutCount}筆 ${fmt(monthExpense)}`,
       `🌙 手續費: ${fmt(monthFee)}`,
       `🛂 代理費: ${fmt(monthAgencyFee)}`,
+      `🔼 上發: ${fmt(monthUpIssue)}`,
+      `🔽 下發: ${fmt(monthDownIssue)}`,
       `🛡️ 風控: ${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `💰 前期結餘: ${fmt(carryover)}`,
-      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+前期結餘)`
+      `🔢 總計: ${fmt(grandTotal)} (月計-手續費-代理費+上發-下發+前期結餘)`
     ];
 
     console.log(`[DEBUG buildStatusMessage] result preview: "${lines.join('\n').substring(0, 100)}"`);
@@ -536,7 +606,7 @@ async function buildRecordStats(ctx, currentRecord) {
     const currentYearMonth = yearMonthTZ();
 
     // --- 當前記錄行 ---
-    const sign = currentRecord.type === 'income' ? '+' : (currentRecord.type === 'expense' ? '-' : '🌙-');
+    const sign = currentRecord.type === 'income' ? '+' : currentRecord.type === 'expense' ? '-' : currentRecord.type === 'upIssue' ? '🔼' : currentRecord.type === 'downIssue' ? '🔽' : '🌙-';
     const rid = (currentRecord.recordId || '?').replace('#', '');
     const recordDate = fmtDate(currentRecord.createdAt);
     const recordTime = fmtTime(currentRecord.createdAt);
@@ -555,6 +625,8 @@ async function buildRecordStats(ctx, currentRecord) {
     const monthExpense = monthDocs.filter(d => d.type === 'expense').reduce((s, d) => s + d.amount, 0);
     const monthFee = monthDocs.filter(d => d.type === 'fee').reduce((s, d) => s + d.amount, 0);
     const monthAgencyFee = monthDocs.filter(d => d.type === 'agencyFee').reduce((s, d) => s + d.amount, 0);
+    const monthUpIssue = monthDocs.filter(d => d.type === 'upIssue').reduce((s, d) => s + d.amount, 0);
+    const monthDownIssue = monthDocs.filter(d => d.type === 'downIssue').reduce((s, d) => s + d.amount, 0);
     const monthInCount = monthDocs.filter(d => d.type === 'income').length;
     const monthOutCount = monthDocs.filter(d => d.type === 'expense').length;
     const monthNet = monthIncome - monthExpense;
@@ -576,7 +648,7 @@ async function buildRecordStats(ctx, currentRecord) {
     const carryover = await getPriorBalance(userId, currentYearMonth);
 
     // --- 總計 ---
-    const grandTotal = monthNet - monthFee - monthAgencyFee + carryover;
+    const grandTotal = monthNet - monthFee - monthAgencyFee + monthUpIssue - monthDownIssue + carryover;
 
     const lines = [
       `(${rid}) ${recordDate} ${recordTime} ${sign}${fmt(currentRecord.amount)} [${recordRemark}]`,
@@ -588,10 +660,12 @@ async function buildRecordStats(ctx, currentRecord) {
       `入${monthInCount}筆:${fmt(monthIncome)},出${monthOutCount}筆:${fmt(monthExpense)}`,
       `手續費月計:${fmt(monthFee)}`,
       `代理費月計:${fmt(monthAgencyFee)}`,
+      `上發月計:${fmt(monthUpIssue)}`,
+      `下發月計:${fmt(monthDownIssue)}`,
       `風控:${fmt(riskLimit)}${riskExpiry ? ' (到期:' + riskExpiry + ')' : ''}`,
       `前期結餘:${fmt(carryover)}`,
       `總計:${fmt(grandTotal)}`,
-      `(月計-手續費-代理費+前期結餘)`
+      `(月計-手續費-代理費+上發-下發+前期結餘)`
     ];
 
     return lines.join('\n');
@@ -636,8 +710,8 @@ async function getHistory(ctx) {
     let count = 1;
 
     for (const data of docsToShow) {
-      const typeIcon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
+      const typeIcon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : data.type === 'agencyFee' ? '🛂' : data.type === 'upIssue' ? '🔼' : data.type === 'downIssue' ? '🔽' : '🌙';
+      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : data.type === 'upIssue' ? '上發' : data.type === 'downIssue' ? '下發' : '手續費';
       message += `${count}. ${typeIcon} [${typeName}] ${fmt(data.amount)} - ${data.recordId || '?'}\n`;
       count++;
     }
@@ -676,12 +750,17 @@ async function showMonthlyFlow(ctx, yearMonth) {
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
-    const netAmount = totalIncome - totalExpense;
+    const totalUpIssue = activeDocs.filter(d => d.type === 'upIssue').reduce((sum, d) => sum + d.amount, 0);
+    const totalDownIssue = activeDocs.filter(d => d.type === 'downIssue').reduce((sum, d) => sum + d.amount, 0);
+    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + totalUpIssue - totalDownIssue;
 
     let message = `📊 ${yearMonth} 月度流量報告\n\n`;
     message += `💰 入帳總額: ${fmt(totalIncome)}\n`;
     message += `💸 支出總額: ${fmt(totalExpense)}\n`;
     message += `🌙 手續費合計: ${fmt(totalFee)}\n`;
+    message += `🛂 代理費合計: ${fmt(totalAgencyFee)}\n`;
+    message += `🔼 上發合計: ${fmt(totalUpIssue)}\n`;
+    message += `🔽 下發合計: ${fmt(totalDownIssue)}\n`;
     message += `📈 淨值: ${fmt(netAmount)}\n`;
     message += `📝 共 ${docs.length} 筆記錄`;
 
@@ -719,8 +798,8 @@ async function listMonthlyRecords(ctx, yearMonth) {
     let count = 1;
 
     for (const data of docs) {
-      const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
-      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
+      const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : data.type === 'agencyFee' ? '🛂' : data.type === 'upIssue' ? '🔼' : data.type === 'downIssue' ? '🔽' : '🌙';
+      const typeName = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : data.type === 'upIssue' ? '上發' : data.type === 'downIssue' ? '下發' : '手續費';
       const time = fmtTime(data.createdAt);
       
       message += `${count}. ${icon} ${typeName} | ${fmt(data.amount)} | ${data.recordId || '?'} | ${time}\n`;
@@ -768,7 +847,7 @@ async function exportMonthlyData(ctx, yearMonth) {
     // 資料列
     const activeDocsForStats = docs.filter(d => !d.deleted);
     for (const data of docs) {
-      const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費');
+      const typeName = data.deleted ? '已刪除' : (data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : data.type === 'upIssue' ? '上發' : data.type === 'downIssue' ? '下發' : '手續費');
       wsData.push([
         data.recordId || '?',
         typeName,
@@ -784,6 +863,8 @@ async function exportMonthlyData(ctx, yearMonth) {
     const totalExpense = activeDocsForStats.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
     const totalFee = activeDocsForStats.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocsForStats.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
+    const totalUpIssue = activeDocsForStats.filter(d => d.type === 'upIssue').reduce((sum, d) => sum + d.amount, 0);
+    const totalDownIssue = activeDocsForStats.filter(d => d.type === 'downIssue').reduce((sum, d) => sum + d.amount, 0);
 
     wsData.push([]);
     wsData.push(['統計', '', '', '', '']);
@@ -791,6 +872,8 @@ async function exportMonthlyData(ctx, yearMonth) {
     wsData.push(['支出筆數', activeDocsForStats.filter(d => d.type === 'expense').length, '支出總計', totalExpense]);
     wsData.push(['手續費總計', totalFee, '', '']);
     wsData.push(['代理費總計', totalAgencyFee, '', '']);
+    wsData.push(['上發總計', totalUpIssue, '', '']);
+    wsData.push(['下發總計', totalDownIssue, '', '']);
     wsData.push(['已刪除筆數', docs.filter(d => d.deleted).length, '', '']);
 
     // 風控
@@ -803,9 +886,9 @@ async function exportMonthlyData(ctx, yearMonth) {
     wsData.push(['前期結餘', carryover, '', '']);
 
     // 總計
-    const grandTotal = totalIncome - totalExpense - totalFee + carryover;
+    const grandTotal = totalIncome - totalExpense - totalFee - totalAgencyFee + totalUpIssue - totalDownIssue + carryover;
     wsData.push(['總計', grandTotal, '', '']);
-    wsData.push(['公式', '月計-手續費-代理費+前期結餘', '', '']);
+    wsData.push(['公式', '月計-手續費-代理費+上發-下發+前期結餘', '', '']);
 
     // --- 生成 Excel ---
     const wb = XLSX.utils.book_new();
@@ -863,17 +946,21 @@ async function previewSettlement(ctx, yearMonth) {
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
+    const totalUpIssue = activeDocs.filter(d => d.type === 'upIssue').reduce((sum, d) => sum + d.amount, 0);
+    const totalDownIssue = activeDocs.filter(d => d.type === 'downIssue').reduce((sum, d) => sum + d.amount, 0);
 
     // 前期結餘（從結算快照取得，避免重複結算累加）
     const carryover = await getPriorBalance(userId, yearMonth);
 
-    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
+    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + totalUpIssue - totalDownIssue + carryover;
 
     let message = `📋 ${yearMonth} 結算預覽\n\n`;
     message += `📥 入帳總計: ${fmt(totalIncome)}\n`;
     message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
     message += `🛂 代理費總計: ${fmt(totalAgencyFee)}\n`;
+    message += `🔼 上發總計: ${fmt(totalUpIssue)}\n`;
+    message += `🔽 下發總計: ${fmt(totalDownIssue)}\n`;
     message += `💰 結轉餘額: ${fmt(totalIncome - totalExpense)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 共 ${docs.length} 筆記錄\n\n`;
@@ -912,11 +999,13 @@ async function confirmSettlement(ctx, yearMonth) {
     const totalExpense = activeDocs.filter(d => d.type === 'expense').reduce((sum, d) => sum + d.amount, 0);
     const totalFee = activeDocs.filter(d => d.type === 'fee').reduce((sum, d) => sum + d.amount, 0);
     const totalAgencyFee = activeDocs.filter(d => d.type === 'agencyFee').reduce((sum, d) => sum + d.amount, 0);
+    const totalUpIssue = activeDocs.filter(d => d.type === 'upIssue').reduce((sum, d) => sum + d.amount, 0);
+    const totalDownIssue = activeDocs.filter(d => d.type === 'downIssue').reduce((sum, d) => sum + d.amount, 0);
 
     // 前期結餘（從結算快照取得，避免重複結算累加）
     const carryover = await getPriorBalance(userId, yearMonth);
 
-    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + carryover;
+    const netAmount = totalIncome - totalExpense - totalFee - totalAgencyFee + totalUpIssue - totalDownIssue + carryover;
 
     // 寫入結算記錄
     await db.collection('settlements').add({
@@ -926,6 +1015,8 @@ async function confirmSettlement(ctx, yearMonth) {
       totalExpense,
       totalFee,
       totalAgencyFee,
+      totalUpIssue,
+      totalDownIssue,
       netAmount,
       recordCount: docs.length,
       settledAt: new Date()
@@ -941,6 +1032,8 @@ async function confirmSettlement(ctx, yearMonth) {
     message += `📤 支出總計: ${fmt(totalExpense)}\n`;
     message += `🧧 手續費總計: ${fmt(totalFee)}\n`;
     message += `🛂 代理費總計: ${fmt(totalAgencyFee)}\n`;
+    message += `🔼 上發總計: ${fmt(totalUpIssue)}\n`;
+    message += `🔽 下發總計: ${fmt(totalDownIssue)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 處理單據: ${docs.length} 筆`;
 
@@ -981,7 +1074,7 @@ async function listCurrentMonthForDelete(ctx) {
 
     for (const item of items) {
       const data = item.data;
-      const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : '🌙';
+      const icon = data.type === 'income' ? '📈' : data.type === 'expense' ? '📉' : data.type === 'agencyFee' ? '🛂' : data.type === 'upIssue' ? '🔼' : data.type === 'downIssue' ? '🔽' : '🌙';
       const typeName = data.type === 'income' ? '入帳' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續';
       const date = fmtDate(data.createdAt);
       const time = fmtTime(data.createdAt);
@@ -1026,7 +1119,7 @@ async function deleteByDocId(ctx, docId) {
       return ctx.reply('❌ 找不到該記錄，可能已被刪除');
     }
     const data = doc.data();
-    const typeLabel = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : '手續費';
+    const typeLabel = data.type === 'income' ? '收入' : data.type === 'expense' ? '支出' : data.type === 'agencyFee' ? '代理費' : data.type === 'upIssue' ? '上發' : data.type === 'downIssue' ? '下發' : '手續費';
     await docRef.update({ deleted: true, deletedAt: new Date(), deletedBy: ctx.from.id });
     await ctx.reply(
       `✅ 已刪除\n\n` +
@@ -1045,6 +1138,8 @@ module.exports = {
   addExpense,
   addFee,
   addAgencyFee,
+  addUpIssue,
+  addDownIssue,
   deleteRecord,
   deleteByDocId,
   setRiskControl,
