@@ -961,7 +961,7 @@ async function previewSettlement(ctx, yearMonth) {
     message += `🛂 代理費總計: ${fmt(totalAgencyFee)}\n`;
     message += `🔼 上發總計: ${fmt(totalUpIssue)}\n`;
     message += `🔽 下發總計: ${fmt(totalDownIssue)}\n`;
-    message += `💰 結轉餘額: ${fmt(totalIncome - totalExpense)}\n`;
+    message += `💰 本月淨收支(不含費/代理/上發下發): ${fmt(totalIncome - totalExpense)}\n`;
     message += `💰 最終結轉餘額: ${fmt(netAmount)}\n`;
     message += `📊 共 ${docs.length} 筆記錄\n\n`;
     message += `⚠️ 使用 /結算計入 ${yearMonth} 確認寫入`;
